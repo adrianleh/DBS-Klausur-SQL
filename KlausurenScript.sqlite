@@ -1,0 +1,710 @@
+CREATE TABLE Studentenwohnheim (
+  ID           int NOT NULL,
+  Ort          varchar(255),
+  Baujahr      int,
+  Zimmergroese int,
+  Ausstattung  varchar(255),
+  Miete        int,
+  PRIMARY KEY (ID)
+);
+
+INSERT INTO Studentenwohnheim (ID, Ort, Baujahr, Zimmergroese, Ausstattung, Miete) VALUES (7, 'M', 1950, 11, 'm', 220);
+
+SELECT
+  Ausstattung,
+  COUNT(ID)
+from Studentenwohnheim
+WHERE Baujahr < 1990 AND Zimmergroese >= 10
+GROUP BY Ausstattung
+HAVING min(Miete) < (SELECT AVG(Miete)
+                     FROM Studentenwohnheim);
+
+SELECT AVG(Miete)
+FROM Studentenwohnheim;
+
+CREATE TABLE Student (
+  MNR int NOT NULL,
+  SNR int,
+  NNR int,
+  PRIMARY KEY (MNR)
+);
+
+CREATE TABLE Studiengang (
+  SNR  int NOT NULL,
+  Name varchar(255),
+  PRIMARY KEY (SNR)
+);
+
+CREATE TABLE Nebenfach (
+  NNR   int NOT NULL,
+  nName varchar(255),
+  PRIMARY KEY (NNR)
+);
+
+SELECT *
+FROM (Student
+  natural join Studiengang
+  left outer join Nebenfach);
+
+
+CREATE TABLE Ort (
+  id   int         NOT NULL,
+  typ  char        NOT NULL,
+  name varchar(20) NOT NULL,
+  x    INT         NOT NULL,
+  y    INT         NOT NULL,
+  PRIMARY KEY (id)
+);
+
+CREATE TABLE Expert (
+  id    int         NOT NULL,
+  name  varchar(20) not null,
+  quote REAL        NOT NULL,
+  PRIMARY KEY (id)
+
+);
+
+CREATE TABLE Rezension (
+  e_id int not null,
+  o_id int not null,
+  note int not null
+);
+
+SELECT
+  typ,
+  (SELECT AVG(Note)
+   FROM Rezension
+   WHERE o_id = ort.id)
+FROM Ort
+GROUP BY typ;
+
+SELECT name
+FROM Ort
+WHERE typ = 'B' AND id NOT IN (SELECT o_id
+                               FROM Rezension);
+
+ALTER TABLE Ort
+  ADD Durschnittspreis int NOT NULL DEFAULT (10) WITH VALUES;
+
+ALTER TABLE Ort DROP COLUMN Durschnittspreis;
+
+CREATE VIEW SUEDSTADT AS
+  SELECT *
+  FROM Ort
+  WHERE x <= 200 AND x >= 50 AND y <= 50 AND y >= 0 AND NOT EXISTS(SELECT *
+                                                                   FROM Rezension
+                                                                   WHERE o_id = id AND note < 3);
+
+DROP VIEW SUEDSTADT;
+
+DELETE FROM Expert
+WHERE id = 5;
+
+SELECT *
+FROM Expert
+WHERE quote < 3 OR EXISTS(SELECT e_id
+                          FROM Rezension
+                          WHERE e_id = id
+                          GROUP BY e_id
+                          HAVING COUNT(e_id) < 2);
+
+CREATE TABLE Pizza (
+  id   int NOT NULL,
+  name varchar(20),
+  PRIMARY KEY (id)
+);
+
+CREATE TABLE Zutat (
+  id     int NOT NULL,
+  name   varchar(20),
+  kosten int NOT NULL,
+  vorrat int NOT NULL,
+  PRIMARY KEY (id)
+);
+
+CREATE TABLE Pizzazutat (
+  p_id int NOT NULL,
+  z_id int NOT NULL
+);
+
+
+DELETE FROM Pizzazutat
+WHERE p_id = 1 AND z_id = 1;
+
+INSERT INTO Pizzazutat (p_id, z_id) VALUES (1, 1);
+
+DELETE FROM Pizzazutat
+WHERE p_id = 180;
+
+ALTER TABLE Pizzazutat
+  ADD FOREIGN KEY p_id REFERENCES Pizza.id;
+
+ALTER TABLE Pizzazutat
+  ADD CONSTRAINT pkid PRIMARY KEY (p_id, z_id);
+
+
+SELECT COUNT(*)
+FROM Pizzazutat
+GROUP BY z_id;
+
+SELECT Name
+FROM Zutat
+WHERE name NOT IN ('Tomat', 'Käse')
+GROUP BY name
+HAVING (SELECT COUNT(*) AS c
+        FROM Pizzazutat
+        WHERE z_id = id
+        GROUP BY z_id
+        HAVING c = (SELECT COUNT(*) AS c1
+                    FROM Pizzazutat, Zutat
+                    WHERE z_id = Zutat.id
+                          AND Zutat.name NOT IN ('Tomat', 'Käse')
+                    GROUP BY z_id
+                    ORDER BY c1
+                      DESC
+                    LIMIT 1))
+
+CREATE VIEW Pizzapreis AS
+  SELECT
+    Name,
+    (SELECT 1.19 * (SUM(kosten) + 2)
+     FROM Pizzazutat, Zutat
+     WHERE Pizza.id = p_id AND z_id = Zutat.id)
+  FROM Pizza;
+
+SELECT DISTINCT
+  z1.name,
+  z2.name,
+  z3.name
+FROM Zutat z1, Zutat z2, Zutat z3
+WHERE z1.id < z2.id AND z2.id < z3.id
+      AND NOT EXISTS(SELECT *
+                     FROM Pizza, Pizzazutat
+                     WHERE Pizza.id = p_id AND z_id IN (z1.id, z2.id, z3.id)
+                     GROUP BY p_id
+                     HAVING COUNT(DISTINCT Pizzazutat.z_id) = 3)
+GROUP BY z1.name, z2.name, z3.name
+HAVING z1.kosten + z2.kosten + z3.kosten < 6.5
+
+CREATE TABLE Mannschaften (
+  id         int NOT NULL,
+  Name       varchar(255),
+  Hochschule varchar(255),
+  ort        varchar(255),
+  PRIMARY KEY (id)
+);
+
+CREATE TABLE Spieler (
+  id         int NOT NULL,
+  Vorame     varchar(255),
+  Name       varchar(255),
+  Mannschaft int,
+  Tore       int,
+  Postition  varchar(255),
+  PRIMARY KEY (id)
+);
+
+DROP TABLE Spieler;
+
+CREATE TABLE Spiel (
+  heim      int,
+  gast      int,
+  tore_heim int,
+  tore_gast int,
+  PRIMARY KEY (heim, gast)
+);
+DROP TABLE Spiel;
+
+SELECT Mannschaften.Name
+FROM Mannschaften, Spieler
+WHERE Spieler.Mannschaft = Mannschaften.id AND Spieler.Name = 'Kemper' AND Spieler.Vorame = 'Gunter';
+
+SELECT
+  M1.Name,
+  M2.Name,
+  Heimsiege.tore_heim - Heimsiege.tore_gast AS Tordifferenz
+FROM Mannschaften M1, Mannschaften M2, (SELECT *
+                                        FROM Spiel
+                                        WHERE tore_heim > tore_gast) Heimsiege
+WHERE Heimsiege.heim = M1.id AND Heimsiege.gast = M2.id
+ORDER BY Tordifferenz;
+
+SELECT *
+FROM (SELECT
+        M1.Name    AS Heim,
+        M2.name    AS Gast,
+        'Hinrunde' AS Runde
+      FROM Mannschaften M1, Mannschaften M2
+      WHERE M1.id < M2.id
+      UNION SELECT
+              M1.Name     AS Heim,
+              M2.name     AS Gast,
+              'Rückrunde' AS Runde
+            FROM Mannschaften M1, Mannschaften M2
+            WHERE M1.id > M2.id)
+ORDER BY Runde;
+
+SELECT Mannschaften.Name
+FROM Mannschaften, Spieler
+WHERE Mannschaften.id = Spieler.Mannschaft
+GROUP BY Mannschaften.Name
+HAVING COUNT(*) < 13 OR COUNT(*) >= 23
+UNION SELECT Mannschaften.Name
+      FROM Mannschaften
+      WHERE NOT EXISTS(SELECT *
+                       FROM Spieler
+                       WHERE Mannschaft = Mannschaften.id)
+
+CREATE TABLE Position (
+  id   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  name varchar(255)
+)
+
+INSERT INTO Position (name) SELECT DISTINCT Postition
+                            FROM Spieler;
+
+ALTER TABLE Spieler
+  ADD COLUMN p_id int;
+
+ALTER TABLE Spieler
+  ADD CONSTRAINT pf FOREIGN KEY (p_id) REFERENCES Position;
+
+UPDATE Spieler
+SET p_id = (SELECT id
+            FROM Position
+            WHERE Position.name = Spieler.Postition)
+
+ALTER TABLE Spieler DELETE COLUMN Postition;
+
+CREATE TABLE Passagiere (
+  id       int NOT NULL PRIMARY KEY,
+  vorname  varchar(20),
+  nachname varchar(20)
+);
+
+CREATE TABLE Flugstrecken (
+  id       int NOT NULL PRIMARY KEY,
+  firma    varchar(20),
+  abflug   varchar(20),
+  flugziel varchar(20),
+  preis    int,
+  dauer    int
+);
+
+CREATE TABLE Buchungen (
+  p_id int NOT NULL,
+  f_id int NOT NULL,
+  PRIMARY KEY (p_id, f_id),
+  FOREIGN KEY (p_id) REFERENCES Passagiere,
+  FOREIGN KEY (f_id) REFERENCES Flugstrecken
+);
+
+SELECT
+  vorname,
+  nachname,
+  COUNT(*),
+  SUM(Preis)
+FROM Passagiere, Flugstrecken, Buchungen
+WHERE p_id = Passagiere.id AND f_id = Flugstrecken.id
+      AND vorname = 'Melissa' AND nachname = 'Mueller'
+GROUP BY vorname, nachname;
+
+
+CREATE VIEW Lowcost AS
+  SELECT
+    abflug,
+    flugziel,
+    preis
+  FROM Flugstrecken
+  WHERE preis < 50 AND dauer > 2
+
+DELETE FROM Buchungen
+WHERE f_id IN (SELECT id
+               FROM Flugstrecken
+               WHERE firma = 'LUFTBW');
+DELETE FROM Flugstrecken
+WHERE firma = 'LUFTBW';
+
+SELECT
+  Stadt,
+  (SELECT COUNT(*)
+   FROM Buchungen
+   WHERE f_id = Staedte.an_id OR f_id = Staedte.ab_id) AS PNR
+FROM (SELECT
+        Stadt,
+        an_id,
+        ab_id
+      FROM (SELECT
+              abflug AS Stadt,
+              id     AS an_id
+            FROM Flugstrecken) Abflug,
+        (SELECT
+           flugziel,
+           id AS ab_id
+         FROM Flugstrecken
+        ) Ankunft
+      WHERE Stadt = flugziel
+            OR Stadt NOT IN (SELECT flugziel
+                             FROM Flugstrecken)
+            OR flugziel NOT IN (SELECT abflug
+                                FROM Flugstrecken)) AS Staedte
+GROUP BY Stadt
+ORDER BY PNR
+  DESC
+
+
+SELECT
+  Stadt,
+  SUM(PassergierzahlRaw) Passergierzahl
+FROM
+  (SELECT
+     Stadt,
+     (SELECT COUNT(*)
+      FROM Buchungen
+      WHERE f_id = id) PassergierzahlRaw
+   FROM (
+     SELECT abflug Stadt
+     FROM Flugstrecken
+     UNION
+     SELECT flugziel Stadt
+     FROM Flugstrecken
+     ), Flugstrecken
+   WHERE Stadt = abflug OR Stadt = flugziel)
+GROUP BY Stadt;
+
+WITH RECURSIVE q(abflug, flugziel, stops, preis) AS (SELECT
+                                                       abflug,
+                                                       flugziel,
+                                                       0,
+                                                       preis
+                                                     FROM Flugstrecken
+                                                     UNION ALL
+                                                     SELECT
+                                                       Q.abflug,
+                                                       f.flugziel,
+                                                       Q.stops + 1,
+                                                       Q.preis + f.preis
+                                                     FROM q Q, Flugstrecken f
+                                                     WHERE Q.flugziel = f.abflug AND f.flugziel != Q.abflug
+)
+SELECT DISTINCT *
+FROM q;
+
+
+CREATE TABLE Berater (
+  berater_id int PRIMARY KEY,
+  name       varchar(200)
+);
+
+CREATE TABLE Kunden (
+  kunden_id int PRIMARY KEY,
+  name      varchar(200)
+);
+
+CREATE TABLE KundenBerater (
+  k_id int NOT NULL,
+  b_id int NOT NULL,
+  PRIMARY KEY (k_id, b_id),
+  FOREIGN KEY (k_id) REFERENCES Kunden,
+  FOREIGN KEY (b_id) REFERENCES Berater
+);
+
+SELECT Berater.name
+FROM
+  Berater, KundenBerater, Kunden
+WHERE Berater.berater_id = b_id AND k_id = Kunden.kunden_id AND Kunden.name = 'Müller';
+
+SELECT
+  berater_id,
+  name,
+  COUNT(*) anzahl
+FROM Berater
+  INNER JOIN KundenBerater ON Berater.berater_id = KundenBerater.b_id
+GROUP BY berater_id
+UNION
+SELECT
+  berater_id,
+  name,
+  0
+FROM Berater
+WHERE berater_id NOT IN (SELECT b_id
+                         FROM KundenBerater)
+ORDER BY anzahl
+  DESC;
+
+CREATE TABLE Kunde (
+  id         INTEGER     NOT NULL PRIMARY KEY,
+  name       varchar(20) NOT NULL,
+  age        INTEGER     NOT NULL,
+  geschlecht CHAR        NOT NULL
+);
+
+CREATE TABLE Fitnesskurse (
+  id    INTEGER NOT NULL PRIMARY KEY,
+  name  varchar NOT NULL,
+  preis REAL    NOT NULL,
+  dauer REAL    NOT NULL
+);
+
+CREATE TABLE Abo (
+  k_id INTEGER NOT NULL,
+  f_id INTEGER NOT NULL,
+  FOREIGN KEY (k_id) REFERENCES Kunde,
+  FOREIGN KEY (f_id) REFERENCES Fitnesskurse
+);
+
+CREATE VIEW Teilnehmerzahl AS
+  SELECT
+    name,
+    COUNT(*)
+  FROM Fitnesskurse, Abo
+  WHERE
+    id = f_id
+  GROUP BY name
+  UNION
+  SELECT
+    name,
+    0
+  FROM Fitnesskurse
+  WHERE id NOT IN (SELECT f_id
+                   FROM Abo);
+
+DELETE FROM Abo
+WHERE k_id = 1 AND f_id = 2;
+INSERT INTO Abo (k_id, f_id) VALUES (1, 2);
+
+ALTER TABLE Abo
+  ADD CONSTRAINT Abo_pk PRIMARY KEY (f_id, k_id);
+
+WITH Yogakunden AS (SELECT
+                      Kunde.id,
+                      Kunde.name,
+                      geschlecht,
+                      age
+                    FROM Kunde, Abo, Fitnesskurse
+                    WHERE Kunde.id = Abo.k_id AND Abo.f_id = Fitnesskurse.id AND Fitnesskurse.name = 'Yoga')
+SELECT
+  k1.name,
+  k2.name
+FROM
+  Yogakunden k1, Yogakunden k2
+WHERE
+  k1.id < k2.id
+  AND ABS(k1.age - k2.age) <= 5
+  AND k1.geschlecht = k2.geschlecht;
+
+
+DROP VIEW Teilnehmerzahl;
+
+WITH KundenZahlungen AS (
+  SELECT
+    Kunde.name,
+    Kunde.age,
+    SUM(Fitnesskurse.preis) Zahlungen
+  FROM Kunde, Abo, Fitnesskurse
+  WHERE Kunde.id = Abo.k_id AND Abo.f_id = Fitnesskurse.id
+  GROUP BY Kunde.id
+  UNION
+  SELECT
+    Kunde.name,
+    Kunde.age,
+    0
+  FROM Kunde
+  WHERE Kunde.id NOT IN (SELECT k_id
+                         FROM Abo)
+) SELECT
+    name,
+    Zahlungen
+  FROM KundenZahlungen
+  WHERE age <= 25 AND Zahlungen <= 150
+  GROUP BY name;
+
+
+SELECT
+  Kunde.name,
+  Kunde.age,
+  SUM(Fitnesskurse.preis) Zahlungen
+FROM Kunde, Abo, Fitnesskurse
+WHERE Kunde.id = Abo.k_id AND Abo.f_id = Fitnesskurse.id
+GROUP BY Kunde.id
+UNION
+SELECT
+  Kunde.name,
+  Kunde.age,
+  0
+FROM Kunde
+WHERE Kunde.id NOT IN (SELECT k_id
+                       FROM Abo);
+
+CREATE TABLE Bereich (
+  id   int          NOT NULL PRIMARY KEY,
+  name varchar(255) NOT NULL
+);
+
+CREATE TABLE Typ (
+  id       int NOT NULL  PRIMARY KEY,
+  name     varchar(255),
+  kurzform varchar(20)
+);
+
+CREATE TABLE Wort (
+  id      int NOT NULL PRIMARY KEY,
+  text    varchar(255),
+  typ     int,
+  bereich int,
+  x       REAL,
+  y       REAL,
+  z       REAL,
+  FOREIGN KEY (typ) REFERENCES Typ,
+  FOREIGN KEY (bereich) REFERENCES Bereich
+);
+
+DROP TABLE Wort;
+DROP Table Typ;
+
+SELECT name
+FROM Wort
+  JOIN Bereich ON Wort.bereich = Bereich.id
+WHERE text = 'Fußball';
+
+SELECT Wort.text
+FROM Wort, Bereich
+WHERE Bereich.name = 'Musik'
+      AND Bereich.id = Wort.bereich
+      AND substr(Wort.text, 0, 3) = 'AC';
+
+SELECT Typ.name
+FROM Typ, Wort
+WHERE Wort.typ = Typ.id
+GROUP BY Typ.name
+HAVING COUNT(*) >= 3;
+
+
+CREATE VIEW Abstand AS
+  SELECT
+    W1.text                                                                                       w1,
+    W2.text                                                                                       w2,
+    (W1.x - W2.x) * (W1.x - W2.x) + (W1.y - W2.y) * (W1.y - W2.y) + (W1.z - W2.z) * (W1.z - W2.z) abstand
+  FROM Wort W1, Wort W2
+  WHERE W1.id < W2.id
+
+SELECT
+  w1,
+  w2
+FROM Abstand
+WHERE w1 = 'Klavier' OR w2 = 'Klavier'
+GROUP BY abstand
+ORDER BY abstand
+  ASC
+LIMIT 3;
+
+WITH MozartRel AS (SELECT
+                     w2 other,
+                     abstand
+                   FROM Abstand
+                   WHERE w1 = 'Mozart'
+                   UNION SELECT
+                           w1 other,
+                           abstand
+                         FROM Abstand
+                         WHERE w2 = 'Mozart')
+SELECT
+  Wort.text    wort,
+  Bereich.name bereich
+FROM MozartRel, Wort, Bereich
+WHERE other = Wort.text AND Wort.bereich = Bereich.id AND abstand < 0.2;
+
+CREATE TABLE Stars (
+  ID   int PRIMARY KEY,
+  Name varchar(20) NOT NULL,
+  Type varchar(10) NOT NULL
+);
+
+CREATE TABLE Planets (
+  StarID   int NOT NULL,
+  ID       int PRIMARY KEY,
+  Name     varchar(20),
+  Mass     REAL,
+  Diameter REAL,
+  Distance REAL,
+  FOREIGN KEY (StarID) REFERENCES Stars
+);
+
+CREATE TABLE Photos (
+  PlanetID int NOT NULL,
+  Photo    varchar(25),
+  Zoom     int NOT NULL,
+  FOREIGN KEY (PlanetID) REFERENCES Planets
+);
+
+SELECT Planets.Name
+FROM Planets, Stars
+WHERE Planets.StarID = Stars.ID AND Stars.Name = 'SUN';
+
+SELECT Photos.Photo
+FROM (SELECT
+        Photos.Photo,
+        Zoom
+      FROM Photos, Planets
+      WHERE Photos.PlanetID = Planets.ID AND Planets.Name = 'Mars'
+      GROUP BY Photo, Zoom
+      ORDER BY Zoom
+        DESC
+      LIMIT 1) Marsphoto, Photos, Planets
+WHERE Marsphoto.Zoom = Photos.ZOOM AND Photos.PlanetID = Planets.ID AND Planets.Name = 'Mars'
+
+CREATE VIEW HabitablePlanets AS
+  SELECT
+    Planets.name planet_name,
+    Stars.name   star_name,
+    Mass,
+    Diameter,
+    Distance
+  FROM Planets, Stars
+  WHERE Planets.StarID = Stars.ID
+        AND (Stars.Type = 'G2V' OR Stars.Type = 'M5.5Ve')
+        AND Mass > 0.5 AND Mass < 2
+        AND Diameter < 1.2 AND Diameter > 0.7;
+
+
+WITH MultPlan AS (SELECT Stars.*
+                  FROM Stars, Planets
+                  WHERE Planets.StarID = StarID
+                  GROUP BY Stars.ID
+                  HAVING COUNT(*) > 1)
+SELECT
+  ID1,
+  Dists.Name,
+  MIN(Dist)
+FROM (
+       SELECT
+         Planet1.ID                                 ID1,
+         Planet1.Name,
+         Planet2.ID                                 ID2,
+         Planet1.StarID                             StarID1,
+         Planet2.StarID                             StarID2,
+         ABS((Planet1.Distance - Planet2.Distance)) Dist
+       FROM Planets Planet1, Planets Planet2
+       WHERE ID1 != ID2
+       GROUP BY ID1, Planet1.Name, ID2, StarID1, StarID2, Dist
+     ) Dists, MultPlan
+WHERE Dists.StarID1 = MultPlan.ID AND Dists.StarID2 = MultPlan.ID
+GROUP BY Dists.ID1, Dists.Name;
+
+CREATE TABLE StarType (
+  ID   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  name varchar(25)
+);
+
+INSERT INTO StarType (name) SELECT DISTINCT Stars.Type
+                            FROM Stars;
+
+ALTER TABLE Stars
+  ADD COLUMN StarType INTEGER;
+
+UPDATE Stars
+SET StarType = (SELECT id
+                      FROM StarType
+                      WHERE StarType.name = Stars.type);
+
+ALTER TABLE Stars DROP COLUMN Type;
