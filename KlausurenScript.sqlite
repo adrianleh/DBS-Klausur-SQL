@@ -690,6 +690,8 @@ FROM (
      ) Dists, MultPlan
 WHERE Dists.StarID1 = MultPlan.ID AND Dists.StarID2 = MultPlan.ID
 GROUP BY Dists.ID1, Dists.Name;
+SELECT * FROM Passagiere
+WHERE NOT EXISTS (SELECT * FROM Buchungen WHERE Buchungen.p_id = Passagiere.id)
 
 CREATE TABLE StarType (
   ID   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -708,3 +710,51 @@ SET StarType = (SELECT id
                       WHERE StarType.name = Stars.type);
 
 ALTER TABLE Stars DROP COLUMN Type;
+
+SELECT Name, Distance FROM Planets GROUP BY Distance HAVING Distance = MAX(Distance);
+
+CREATE TABLE Spiel_2 (
+  id INTEGER,
+  team_a CHAR(3),
+  team_b CHAR(3),
+  tore_a INTEGER,
+  tore_b INTEGER,
+  PRIMARY KEY (id));
+
+CREATE Table Experte (
+  id INTEGER PRIMARY KEY,
+  name VARCHAR(20),
+  titelzahl INTEGER
+);
+
+CREATE TABLE Tipp (
+  s_id INTEGER,
+  e_id INTEGER,
+  tore_a INTEGER,
+  tore_b INTEGER,
+  FOREIGN KEY (e_id) REFERENCES Experte,
+  FOREIGN KEY (s_id) REFERENCES Spiel_2
+);
+
+SELECT AVG(titelzahl) FROM Experte;
+
+CREATE View FCBSpiel AS SELECT team_b ,'H', tore_a, tore_b FROM Spiel_2 WHERE team_a ='FCB' UNION SELECT team_a ,'A', tore_b, tore_a FROM Spiel_2 WHERE team_b ='FCB';
+
+SELECT
+  name,
+  COUNT(*) richtigAnzahl
+FROM Tipp, Spiel_2, Experte
+WHERE Tipp.e_id = Experte.id
+AND Tipp.s_id = Spiel_2.id
+AND Spiel_2.tore_a - Spiel_2.tore_b = Tipp.tore_a - Tipp.tore_b
+GROUP BY name;
+
+SELECT team_a,
+      team_b
+FROM Spiel_2
+WHERE team_a = 'BVB'
+AND id NOT IN (SELECT s_id FROM Tipp
+                  WHERE Tipp.tore_a > Tipp.tore_b);
+
+DELETE FROM Tipp WHERE e_id = (SELECT id FROM Experte WHERE name = 'Lattek');
+DELETE FROM Experte WHERE name = 'Lattek';
