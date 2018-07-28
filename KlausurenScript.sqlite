@@ -390,7 +390,6 @@ WITH RECURSIVE q(abflug, flugziel, stops, preis) AS (SELECT
 SELECT DISTINCT *
 FROM q;
 
-
 CREATE TABLE Berater (
   berater_id int PRIMARY KEY,
   name       varchar(200)
@@ -758,3 +757,57 @@ AND id NOT IN (SELECT s_id FROM Tipp
 
 DELETE FROM Tipp WHERE e_id = (SELECT id FROM Experte WHERE name = 'Lattek');
 DELETE FROM Experte WHERE name = 'Lattek';
+
+CREATE TABLE Player (
+  player_id INTEGER PRIMARY KEY,
+  name VARCHAR(200),
+  team CHAR(3)
+);
+
+CREATE Table Cup (
+  cup_id INTEGER PRIMARY KEY ,
+  cup_name VARCHAR(25)
+);
+
+CREATE Table Participation(
+  player_id INTEGER,
+  cup_id INTEGER,
+  goals INTEGER,
+  PRIMARY KEY (player_id, cup_id),
+  FOREIGN KEY (player_id) REFERENCES Player(player_id),
+  FOREIGN KEY (cup_id) REFERENCES Cup(cup_id)
+);
+
+CREATE VIEW GoalsPerPlayer AS
+  SELECT Player.player_id,
+          name,
+          team,
+          SUM(goals) sum_goals
+  FROM Player, Participation
+  WHERE Player.player_id = Participation.player_id
+  GROUP BY Player.player_id
+  UNION
+  SELECT player_id,
+          name,
+          team,
+          0 sum_goals
+  FROM Player
+  WHERE player_id NOT IN (SELECT player_id FROM Participation);
+
+CREATE VIEW AlwaysParticipating AS
+SELECT
+  player_id,
+  name
+FROM Player
+WHERE NOT EXISTS (SELECT cup_id FROM Cup EXCEPT
+SELECT cup_id FROM Participation WHERE Participation.player_id = Player.player_id );
+
+CREATE VIEW GoalsPerTeam AS
+SELECT team, SUM(sum_goals) AS sum_goals FROM GoalsPerPlayer
+GROUP BY team;
+
+SELECT t1.team, t1.sum_goals
+FROM GoalsPerTeam AS t1
+LEFT OUTER JOIN GoalsPerTeam AS t2
+ON t1.sum_goals < t2.sum_goals
+WHERE t2.team IS NULL;
